@@ -11,10 +11,6 @@ const io = require('socket.io')(server);
 
 app.use(express.static(path.join(__dirname, 'build')));
 
-app.get('/ping', function (req, res) {
- return res.json("pong");
-});
-
 app.get('/', function (req, res) {
   res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
@@ -33,21 +29,32 @@ const removePoem = (socketId, gameRoom) => {
 }
 
 const updatePoemLine = (line, poemId, lineNum, gameRoom) => {
-  poems[gameRoom] = poems[gameRoom].map(poem => poem.poemId === poemId ? { ...poem, [lineNum]: { ...poem[lineNum], value: line } } : poem)
+  poems[gameRoom] = poems[gameRoom].map(poem =>
+    poem.poemId === poemId ?
+      {
+        ...poem,
+        [lineNum]: {
+          ...poem[lineNum],
+          value: line
+        }
+      }
+      : poem
+  )
 }
 
 io.on('connection', socket => {
-  const emitPoems = (gameRoom) => io.to(gameRoom).emit('poems updated', poems[gameRoom])
   console.log('a new client connected');
   socket.on('join game room', (gameRoom, username) => {
     socket.join(gameRoom, () => {
+      const emitPoems = (gameRoom) => io.to(gameRoom).emit('poems updated', poems[gameRoom])
+
       poems[gameRoom] = poems[gameRoom] ? poems[gameRoom] : []
+      
       socket.emit('joined game room', gameRoom)
 
       const myPoem = { poemId: socket.id, username, ...emptyPoem };
       poems[gameRoom].push(myPoem)
       emitPoems(gameRoom)
-      // io.to(gameRoom).emit('poems updated', poems[gameRoom])
 
       socket.on('start game', () => {
         io.to(gameRoom).emit('game started')
@@ -56,28 +63,28 @@ io.on('connection', socket => {
       socket.on('disconnect', () => {
         console.log('a client disconnected')
         removePoem(socket.id, gameRoom)
-        io.to(gameRoom).emit('poems updated', poems[gameRoom])
+        emitPoems(gameRoom)
       });
     
       socket.on('add line 1', (line, poemId) => {
         updatePoemLine(line, poemId, "line1", gameRoom);
-        io.to(gameRoom).emit('poems updated', poems[gameRoom])
+        emitPoems(gameRoom)
       });
       socket.on('add line 2', (line, poemId) => {
         updatePoemLine(line, poemId, "line2", gameRoom);
-        io.to(gameRoom).emit('poems updated', poems[gameRoom])
+        emitPoems(gameRoom)
       });
       socket.on('add line 3', (line, poemId) => {
         updatePoemLine(line, poemId, "line3", gameRoom);
-        io.to(gameRoom).emit('poems updated', poems[gameRoom])
+        emitPoems(gameRoom)
       });
       socket.on('add line 4', (line, poemId) => {
         updatePoemLine(line, poemId, "line4", gameRoom);
-        io.to(gameRoom).emit('poems updated', poems[gameRoom])
+        emitPoems(gameRoom)
       });
       socket.on('add line 5', (line, poemId) => {
         updatePoemLine(line, poemId, "line5", gameRoom);
-        io.to(gameRoom).emit('poems updated', poems[gameRoom])
+        emitPoems(gameRoom)
       });
     })
   })
