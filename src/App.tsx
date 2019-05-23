@@ -191,7 +191,7 @@ class App extends React.Component<{}, IState> {
     joinGameRoom: '',
     gameStarted: false,
   }
-  socket = socketIOClient('/');
+  socket = socketIOClient();
   componentDidMount() {
     this.socket.on('joined game room', gameRoom => {
       this.setState({ gameRoom })
