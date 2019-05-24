@@ -45,10 +45,14 @@ interface ILineInput {
   lineName: string
   finalLine: { assignedTo: string, value: string, show: boolean }
   editingLine: string
+  hint: string
   onChange: (val: string) => void
   onSubmit: () => void
 }
 const LineInput: React.SFC<ILineInput> = props => {
+  const submitOnEnter = key => {
+    key === 'Enter' && props.onSubmit()
+  }
   return (
     props.finalLine.show && (
       <div style={{ padding: 8 }}>
@@ -60,8 +64,12 @@ const LineInput: React.SFC<ILineInput> = props => {
               label={props.lineName}
               value={props.editingLine}
               onChange={ev => props.onChange(ev.target.value)}
+              helperText={props.hint}
+              onKeyDown={ev => submitOnEnter(ev.key)}
             />
-            <Button onClick={props.onSubmit}>Save Line</Button>
+            <Button disabled={!props.editingLine} onClick={props.onSubmit}>
+              Save Line
+            </Button>
           </span>
         )}
       </div>
@@ -82,15 +90,15 @@ interface ICompletedPoemBox {
 const CompletedPoemBox: React.SFC<ICompletedPoemBox> = props => {
   return (
     <Card style={{ margin: 16 }}>
-        <CardContent>
-          <div className='poem-header'>Poet: {props.poem.username}</div>
-          <div>{props.poem.line1.value}</div>
-          <div>{props.poem.line2.value}</div>
-          <div>{props.poem.line3.value}</div>
-          <div>{props.poem.line4.value}</div>
-          <div>{props.poem.line5.value}</div>
-        </CardContent>
-      </Card>
+      <CardContent>
+        <div className='poem-header'>Poem started by {props.poem.username}</div>
+        <div style={{ padding: 8 }}>{props.poem.line1.value}</div>
+        <div style={{ padding: 8 }}>{props.poem.line2.value}</div>
+        <div style={{ padding: 8 }}>{props.poem.line3.value}</div>
+        <div style={{ padding: 8 }}>{props.poem.line4.value}</div>
+        <div style={{ padding: 8 }}>{props.poem.line5.value}</div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -122,9 +130,10 @@ class PoemBox extends React.Component<IPoemProps> {
     return (
       <Card style={{ margin: 16 }}>
         <CardContent>
-          <div className='poem-header'>Poet: {this.props.poem.username}</div>
+          <div className='poem-header'>Poem started by {this.props.poem.username}</div>
           <LineInput
             lineName='Line 1'
+            hint='There once was a man from Peru'
             editingLine={this.state.line1}
             finalLine={this.props.poem.line1}
             onSubmit={() => this.props.handleSubmitLine1(this.state.line1, this.props.poem.poemId)}
@@ -132,6 +141,7 @@ class PoemBox extends React.Component<IPoemProps> {
           />
           <LineInput
             lineName='Line 2'
+            hint='Who dreamed he was eating his shoe'
             editingLine={this.state.line2}
             finalLine={this.props.poem.line2}
             onSubmit={() => this.props.handleSubmitLine2(this.state.line2, this.props.poem.poemId)}
@@ -139,6 +149,7 @@ class PoemBox extends React.Component<IPoemProps> {
           />
           <LineInput
             lineName='Line 3'
+            hint='He woke with a fright'
             editingLine={this.state.line3}
             finalLine={this.props.poem.line3}
             onSubmit={() => this.props.handleSubmitLine3(this.state.line3, this.props.poem.poemId)}
@@ -146,6 +157,7 @@ class PoemBox extends React.Component<IPoemProps> {
           />
           <LineInput
             lineName='Line 4'
+            hint='In the middle of the night'
             editingLine={this.state.line4}
             finalLine={this.props.poem.line4}
             onSubmit={() => this.props.handleSubmitLine4(this.state.line4, this.props.poem.poemId)}
@@ -153,6 +165,7 @@ class PoemBox extends React.Component<IPoemProps> {
           />
           <LineInput
             lineName='Line 5'
+            hint='To find that his dream had come true!'
             editingLine={this.state.line5}
             finalLine={this.props.poem.line5}
             onSubmit={() => this.props.handleSubmitLine5(this.state.line5, this.props.poem.poemId)}
@@ -230,26 +243,34 @@ class App extends React.Component<{}, IState> {
     this.socket.emit('add line 5', line, poemId)
   }
   showLine = (username, poem, poemLine, poetOwner) => {
+    const poetIsMe = poet => poet === username
+    const line1Complete = poem => !!poem.line1.value
+    const line1CompleteUser = poem => (line1Complete(poem) && poetIsMe(poetOwner.next.value))
+    const lines12Complete = poem => line1Complete(poem) && !!poem.line2.value
+    const lines12CompleteUser = poem => (lines12Complete(poem) && poetIsMe(poetOwner.next.next.value))
+    const lines123Complete = poem => lines12Complete(poem) && !!poem.line3.value
+    const lines123CompleteUser = poem => (lines123Complete(poem) && poetIsMe(poetOwner.next.next.next.value))
+    const lines1234Complete = poem => (lines123Complete(poem) && !!poem.line4.value && poetIsMe(poetOwner.next.next.next.next.value))
     if(poemLine === 'line1') {
       return username === poetOwner.value
-        || (poem.line1.value && poetOwner.next.value === username)
-        || (poem.line1.value && poem.line2.value && poetOwner.next.next.value === username)
-        || (poem.line1.value && poem.line2.value && poem.line3.value && poetOwner.next.next.next.value === username)
-        || (poem.line1.value && poem.line2.value && poem.line3.value && poem.line4.value && poetOwner.next.next.next.next.value === username)
+        || line1CompleteUser(poem)
+        || lines12CompleteUser(poem)
+        || lines123CompleteUser(poem)
+        || lines1234Complete(poem)
     } else if (poemLine === 'line2') {
-      return (poem.line1.value && poetOwner.next.value === username)
-        || (poem.line1.value && poem.line2.value && poetOwner.next.next.value === username)
-        || (poem.line1.value && poem.line2.value && poem.line3.value && poetOwner.next.next.next.value === username)
-        || (poem.line1.value && poem.line2.value && poem.line3.value && poem.line4.value && poetOwner.next.next.next.next.value === username)
+      return line1CompleteUser(poem)
+        || lines12CompleteUser(poem)
+        || lines123CompleteUser(poem)
+        || lines1234Complete(poem)
     } else if (poemLine === 'line3'){
-      return (poem.line1.value && poem.line2.value && poetOwner.next.next.value === username)
-      || (poem.line1.value && poem.line2.value && poem.line3.value && poetOwner.next.next.next.value === username)
-      || (poem.line1.value && poem.line2.value && poem.line3.value && poem.line4.value && poetOwner.next.next.next.next.value === username)
+      return lines12CompleteUser(poem)
+      || lines123CompleteUser(poem)
+      || lines1234Complete(poem)
     } else if (poemLine === 'line4'){
-      return (poem.line1.value && poem.line2.value && poem.line3.value && poetOwner.next.next.next.value === username)
-        || (poem.line1.value && poem.line2.value && poem.line3.value && poem.line4.value && poetOwner.next.next.next.next.value === username)
+      return lines123CompleteUser(poem)
+        || lines1234Complete(poem)
     } else if (poemLine === 'line5'){
-      return (poem.line1.value && poem.line2.value && poem.line3.value && poem.line4.value && poetOwner.next.next.next.next.value === username)
+      return lines1234Complete(poem)
     }
   }
   currentlyEditingLine = poem => {
@@ -266,21 +287,15 @@ class App extends React.Component<{}, IState> {
     // for each poem, assign each line to a user
     const assignedPoems = this.state.poems.map(poem => {
       const poetOwner = circularLinkedPoets.head ? circularLinkedPoets.getWhere(poem.username) : new CircularLinkedList().append(null)
-      console.log(this.state.username === poetOwner.value)
-      return ({ 
+      return ({
         ...poem,
-        // show: poem.line1.value
         line1: {
           ...poem.line1,
-          //show line if you are owner or if line is complete and you are poetOwner.next.value
-          // or if line is complete and next line is complete and you are poetowner.next.next.value
-          // etc
           show: this.showLine(this.state.username, poem, 'line1', poetOwner),
           assignedTo: poetOwner.value
         },
         line2: {
           ...poem.line2,
-          //show line if you are line1 is complete and you are poetOwner.next.value
           show: this.showLine(this.state.username, poem, 'line2', poetOwner),
           assignedTo: poetOwner.next.value
         },
@@ -303,20 +318,18 @@ class App extends React.Component<{}, IState> {
     })
     const visiblePoems = assignedPoems.filter(this.currentlyEditingLine)
     const completedPoems = this.state.poems.filter(poem => poem.line5.value !== '');
-    console.log(this.state.gameRoom)
 
     return (
       <div className='container'>
         <div className='user-box'>
-          <div>The Limerick Game</div>
-          {this.state.username && (
-            <div>{this.state.username}</div>
-          )}
+          <div style={{ fontSize: 34, fontWeight: 200, color: 'black', padding: '8px 0' }}>
+            The Limerick Game
+          </div>
           {this.state.gameRoom && (
             <>
               <div>Game Room: {this.state.gameRoom}</div>
-              <div>Players in room:</div>
-              <div>
+              <span>Players in room: </span>
+              <span>
                 {this.state.poems.map((poem, i) => {
                   return (
                     <span key={poem.poemId}>
@@ -324,14 +337,17 @@ class App extends React.Component<{}, IState> {
                     </span>
                   )
                 })}
-              </div>
-              {!this.state.gameStarted && <Button onClick={this.handleStartGame}>Start Game</Button>}
+              </span>
             </>
           )}
         </div>
         {this.state.gameRoom ? (
-          <div style={{ display: 'flex' }}>
-            
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {!this.state.gameStarted && (
+              <Paper>
+                <Button onClick={this.handleStartGame}>Start Game</Button>
+              </Paper>
+            )}
             {this.state.gameStarted && (
               <>
                 {visiblePoems.map(poem => (
@@ -345,12 +361,12 @@ class App extends React.Component<{}, IState> {
                     handleSubmitLine5={this.handleSubmitLine5}
                   />
                 ))}
-                {completedPoems.length ? (
-                  <div>
+                {completedPoems.length === this.state.poems.length ? (
+                  <Paper>
                     <Button color='primary' onClick={() => this.setState(state => ({ showCompleted: !state.showCompleted }))}>
                       {this.state.showCompleted ? 'Hide' : 'Show'} Completed Poems
                     </Button>
-                  </div>
+                  </Paper>
                 ) : null}
                 {this.state.showCompleted && (
                   completedPoems.map(poem => (
@@ -359,6 +375,9 @@ class App extends React.Component<{}, IState> {
                       poem={poem}
                     />
                   ))
+                )}
+                {visiblePoems.length === 0 && completedPoems.length < this.state.poems.length && (
+                  <div>Waiting on next poem...</div>
                 )}
               </>
             )}
@@ -369,10 +388,7 @@ class App extends React.Component<{}, IState> {
               <TextField
                 label="Name"
                 value={this.state.username}
-                onChange={ev => {
-                  console.log(ev.target.value)
-                  this.setState({ username: ev.target.value })
-                }}
+                onChange={ev => this.setState({ username: ev.target.value })}
                 margin="normal"
               />
               <TextField
