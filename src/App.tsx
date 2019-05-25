@@ -61,10 +61,11 @@ const LineInput: React.SFC<ILineInput> = props => {
         ) : (
           <span style={{ display: 'flex' }}>
             <TextField
+              style={{ width: 400 }}
               label={props.lineName}
               value={props.editingLine}
               onChange={ev => props.onChange(ev.target.value)}
-              helperText={props.hint}
+              helperText={`e.g. ${props.hint}`}
               onKeyDown={ev => submitOnEnter(ev.key)}
             />
             <Button disabled={!props.editingLine} onClick={props.onSubmit}>
@@ -342,32 +343,14 @@ class App extends React.Component<{}, IState> {
           )}
         </div>
         {this.state.gameRoom ? (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {!this.state.gameStarted && (
+          completedPoems.length === this.state.poems.length ? (
+            <div style={{ position: 'relative', top: 100, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <Paper>
-                <Button onClick={this.handleStartGame}>Start Game</Button>
+                <Button color='primary' onClick={() => this.setState(state => ({ showCompleted: !state.showCompleted }))}>
+                  {this.state.showCompleted ? 'Hide' : 'Show'} Completed Poems
+                </Button>
               </Paper>
-            )}
-            {this.state.gameStarted && (
-              <>
-                {visiblePoems.map(poem => (
-                  <PoemBox
-                    key={poem.poemId}
-                    poem={poem}
-                    handleSubmitLine1={this.handleSubmitLine1}
-                    handleSubmitLine2={this.handleSubmitLine2}
-                    handleSubmitLine3={this.handleSubmitLine3}
-                    handleSubmitLine4={this.handleSubmitLine4}
-                    handleSubmitLine5={this.handleSubmitLine5}
-                  />
-                ))}
-                {completedPoems.length === this.state.poems.length ? (
-                  <Paper>
-                    <Button color='primary' onClick={() => this.setState(state => ({ showCompleted: !state.showCompleted }))}>
-                      {this.state.showCompleted ? 'Hide' : 'Show'} Completed Poems
-                    </Button>
-                  </Paper>
-                ) : null}
+              <div style={{ height: 450, overflow: 'auto', marginTop: 8 }}>
                 {this.state.showCompleted && (
                   completedPoems.map(poem => (
                     <CompletedPoemBox
@@ -376,12 +359,36 @@ class App extends React.Component<{}, IState> {
                     />
                   ))
                 )}
-                {visiblePoems.length === 0 && completedPoems.length < this.state.poems.length && (
-                  <div>Waiting on next poem...</div>
-                )}
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ position: 'relative', top: 100, height: 400, overflow: 'auto' }}>
+              {!this.state.gameStarted && (
+                <Paper>
+                  <Button onClick={this.handleStartGame}>Start Game</Button>
+                </Paper>
+              )}
+              {this.state.gameStarted && (
+                <>
+                  {visiblePoems.map(poem => (
+                    <PoemBox
+                      key={poem.poemId}
+                      poem={poem}
+                      handleSubmitLine1={this.handleSubmitLine1}
+                      handleSubmitLine2={this.handleSubmitLine2}
+                      handleSubmitLine3={this.handleSubmitLine3}
+                      handleSubmitLine4={this.handleSubmitLine4}
+                      handleSubmitLine5={this.handleSubmitLine5}
+                    />
+                  ))}
+                  
+                  {visiblePoems.length === 0 && completedPoems.length < this.state.poems.length && (
+                    <div>Waiting on other poets...</div>
+                  )}
+                </>
+              )}
+            </div>
+          )
         ) : (
           <div>
             <Paper className='join-game-container'>
