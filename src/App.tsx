@@ -1,44 +1,49 @@
 import React from 'react'
 import './App.css'
 import socketIOClient from 'socket.io-client'
-import Card from '@material-ui/core/Card';
-import CardContent from '@material-ui/core/CardContent';
-import Button from '@material-ui/core/Button';
-import TextField from '@material-ui/core/TextField';
-import Paper from '@material-ui/core/Paper';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Button from '@mui/material/Button';
+import TextField from '@mui/material/TextField';
+import Paper from '@mui/material/Paper';
 
-function CircularLinkedList(){  
-  this.head = null;
+class CircularLinkedList<T> {  
+  private head: ListNode<T> | null;
+  
+  constructor() {
+    this.head = null;
+  }
+
+  append(data: T): void {
+    const newNode = new ListNode(data);
+    if (!this.head) {
+      this.head = newNode;
+      newNode.next = newNode; // Point to itself for circularity
+    } else {
+      newNode.next = this.head.next;
+      this.head.next = newNode;
+    }
+  }
+
+  getWhere(username: string): ListNode<T> | null {
+    if (!this.head) return null;
+    let node: ListNode<T> = this.head;
+    do {
+      if (node.data === username) return node;
+      node = node.next!;
+    } while (node !== this.head);
+    return null;
+  }
 }
 
-CircularLinkedList.prototype.append = function(value) {
-  var head = this.head
-  var current = head
-  var node = { value: value, next: null, previous: null };
-  if(!head){
-    node.next = node;
-    node.previous = node;
-    this.head = node;
- }
- else{
-    while(current.next !== head){
-       current = current.next;
-    }
-    
-    node.next = head;
-    node.previous = current;
- 
-    head.previous = node;
-    current.next = node;
- }   
-};
+class ListNode<T> {
+  data: T;
+  next: ListNode<T> | null;
 
-CircularLinkedList.prototype.getWhere = function(value) {
-  let node = this.head;
-  while (node.value !== value) {
-    node = node.next
+  constructor(data: T) {
+    this.data = data;
+    this.next = null;
   }
-  return node
 }
 
 interface ILineInput {
@@ -49,9 +54,16 @@ interface ILineInput {
   onChange: (val: string) => void
   onSubmit: () => void
 }
-const LineInput: React.SFC<ILineInput> = props => {
-  const submitOnEnter = key => {
-    key === 'Enter' && props.onSubmit()
+
+const LineInput: React.FC<ILineInput> = props => {
+  const submitOnEnter = (key: string) => {
+    if (key === 'Enter') {
+      props.onSubmit();
+    }
+  };
+
+  if (!props.finalLine.show) {
+    return null;
   }
   return (
     props.finalLine.show && (
@@ -78,6 +90,12 @@ const LineInput: React.SFC<ILineInput> = props => {
   )
 }
 
+interface ILine {
+  value: string;
+  assignedTo: string;
+  show: boolean;
+}
+
 interface ICompletedPoemBox {
   poem: {
     username: string
@@ -88,7 +106,8 @@ interface ICompletedPoemBox {
     line5: ILine
   }
 }
-const CompletedPoemBox: React.SFC<ICompletedPoemBox> = props => {
+
+const CompletedPoemBox: React.FC<ICompletedPoemBox> = props => {
   return (
     <Card style={{ margin: 16 }}>
       <CardContent>
@@ -107,11 +126,11 @@ interface IPoemProps {
   poem: {
     poemId: string
     username: string
-    line1: { assignedTo: string, value: string, show: boolean }
-    line2: { assignedTo: string, value: string, show: boolean }
-    line3: { assignedTo: string, value: string, show: boolean }
-    line4: { assignedTo: string, value: string, show: boolean }
-    line5: { assignedTo: string, value: string, show: boolean }
+    line1: ILine
+    line2: ILine
+    line3: ILine
+    line4: ILine
+    line5: ILine
   }
   handleSubmitLine1: (line: string, poemId: string) => void
   handleSubmitLine2: (line: string, poemId: string) => void
@@ -119,6 +138,7 @@ interface IPoemProps {
   handleSubmitLine4: (line: string, poemId: string) => void
   handleSubmitLine5: (line: string, poemId: string) => void
 }
+
 class PoemBox extends React.Component<IPoemProps> {
   state = {
     line1: '',
@@ -178,11 +198,7 @@ class PoemBox extends React.Component<IPoemProps> {
   }
 }
 
-interface ILine { value: string, assignedTo: string}
-
-interface IState {
-  username: string
-  poems: Array<{
+interface IPoem {
     poemId: string
     username: string
     line1: ILine
@@ -190,12 +206,17 @@ interface IState {
     line3: ILine
     line4: ILine
     line5: ILine
-  }>
+}
+
+interface IState {
+  username: string
+  poems: Array<IPoem>
   showCompleted: boolean
   gameRoom: string
   joinGameRoom: string
   gameStarted: boolean
 }
+
 class App extends React.Component<{}, IState> {
   state: IState = {
     username: '',
@@ -205,12 +226,13 @@ class App extends React.Component<{}, IState> {
     joinGameRoom: '',
     gameStarted: false,
   }
-  socket = socketIOClient();
+  socket: SocketIOClient.Socket = socketIOClient();
+
   componentDidMount() {
-    this.socket.on('joined game room', gameRoom => {
+    this.socket.on('joined game room', (gameRoom: string) => {
       this.setState({ gameRoom })
     })
-    this.socket.on('poems updated', poems => {
+    this.socket.on('poems updated', (poems: Array<IPoem>) => {
       console.log("UPDATE", poems)
       this.setState({ poems })
     })
@@ -218,106 +240,122 @@ class App extends React.Component<{}, IState> {
       this.setState({ gameStarted: true })
     })
   }
+
   handleCreateGameRoom = () => {
     const gameRoom = (Math.floor(Math.random()*90000) + 10000).toString();
     this.socket.emit('join game room', gameRoom, this.state.username)
   }
+
   handleJoinGameRoom = () => {
     this.socket.emit('join game room', this.state.joinGameRoom, this.state.username)
   }
+
   handleStartGame = () => {
     this.socket.emit('start game', this.state.gameRoom)
   }
-  handleSubmitLine1 = (line, poemId) => {
+
+  handleSubmitLine1 = (line: string, poemId: string) => {
     this.socket.emit('add line 1', line, poemId)
   }
-  handleSubmitLine2 = (line, poemId) => {
+
+  handleSubmitLine2 = (line: string, poemId: string) => {
     this.socket.emit('add line 2', line, poemId)
   }
-  handleSubmitLine3 = (line, poemId) => {
+
+  handleSubmitLine3 = (line: string, poemId: string) => {
     this.socket.emit('add line 3', line, poemId)
   }
-  handleSubmitLine4 = (line, poemId) => {
+
+  handleSubmitLine4 = (line: string, poemId: string) => {
     this.socket.emit('add line 4', line, poemId)
   }
-  handleSubmitLine5 = (line, poemId) => {
+
+  handleSubmitLine5 = (line: string, poemId: string) => {
     this.socket.emit('add line 5', line, poemId)
   }
-  showLine = (username, poem, poemLine, poetOwner) => {
-    const poetIsMe = poet => poet === username
-    const line1Complete = poem => !!poem.line1.value
-    const line1CompleteUser = poem => (line1Complete(poem) && poetIsMe(poetOwner.next.value))
-    const lines12Complete = poem => line1Complete(poem) && !!poem.line2.value
-    const lines12CompleteUser = poem => (lines12Complete(poem) && poetIsMe(poetOwner.next.next.value))
-    const lines123Complete = poem => lines12Complete(poem) && !!poem.line3.value
-    const lines123CompleteUser = poem => (lines123Complete(poem) && poetIsMe(poetOwner.next.next.next.value))
-    const lines1234Complete = poem => (lines123Complete(poem) && !!poem.line4.value && poetIsMe(poetOwner.next.next.next.next.value))
+
+  showLine = (username: string, poem: IPoem, poemLine: string, poetOwner: ListNode<string> | null): boolean => {
+    if (!poetOwner) return false;
+
+    const poetIsMe = (poet: string) => poet === username;
+    const line1Complete = (poem: IPoem) => !!poem.line1.value;
+    const line1CompleteUser = (poem: IPoem) => (line1Complete(poem) && poetIsMe(poetOwner.next!.data));
+    const lines12Complete = (poem: IPoem) => line1Complete(poem) && !!poem.line2.value;
+    const lines12CompleteUser = (poem: IPoem) => (lines12Complete(poem) && poetIsMe(poetOwner.next!.next!.data));
+    const lines123Complete = (poem: IPoem) => lines12Complete(poem) && !!poem.line3.value;
+    const lines123CompleteUser = (poem: IPoem) => (lines123Complete(poem) && poetIsMe(poetOwner.next!.next!.next!.data));
+    const lines1234Complete = (poem: IPoem) => (lines123Complete(poem) && !!poem.line4.value && poetIsMe(poetOwner.next!.next!.next!.next!.data));
+
     if(poemLine === 'line1') {
-      return username === poetOwner.value
+      return username === poetOwner.data
         || line1CompleteUser(poem)
         || lines12CompleteUser(poem)
         || lines123CompleteUser(poem)
-        || lines1234Complete(poem)
+        || lines1234Complete(poem);
     } else if (poemLine === 'line2') {
       return line1CompleteUser(poem)
         || lines12CompleteUser(poem)
         || lines123CompleteUser(poem)
-        || lines1234Complete(poem)
+        || lines1234Complete(poem);
     } else if (poemLine === 'line3'){
       return lines12CompleteUser(poem)
       || lines123CompleteUser(poem)
-      || lines1234Complete(poem)
+      || lines1234Complete(poem);
     } else if (poemLine === 'line4'){
       return lines123CompleteUser(poem)
-        || lines1234Complete(poem)
+        || lines1234Complete(poem);
     } else if (poemLine === 'line5'){
-      return lines1234Complete(poem)
+      return lines1234Complete(poem);
     }
+    return false;
   }
-  currentlyEditingLine = poem => {
+
+  currentlyEditingLine = (poem: IPoem): boolean => {
     return (poem.line1.value === '' && poem.line1.show === true)
       || (poem.line2.value === '' && poem.line2.show === true)
       || (poem.line3.value === '' && poem.line3.show === true)
       || (poem.line4.value === '' && poem.line4.show === true)
-      || (poem.line5.value === '' && poem.line5.show === true)
+      || (poem.line5.value === '' && poem.line5.show === true);
   }
+
   render() {
     const poets = this.state.poems.map(poem => poem.username);
-    const circularLinkedPoets = new CircularLinkedList();
-    poets.forEach(poet => circularLinkedPoets.append(poet))
-    // for each poem, assign each line to a user
+    const circularLinkedPoets = new CircularLinkedList<string>();
+    poets.forEach(poet => circularLinkedPoets.append(poet));
+
     const assignedPoems = this.state.poems.map(poem => {
-      const poetOwner = circularLinkedPoets.head ? circularLinkedPoets.getWhere(poem.username) : new CircularLinkedList().append(null)
+      const poetOwner = circularLinkedPoets.getWhere(poem.username);
       return ({
         ...poem,
         line1: {
           ...poem.line1,
           show: this.showLine(this.state.username, poem, 'line1', poetOwner),
-          assignedTo: poetOwner.value
+          assignedTo: poetOwner ? poetOwner.data : ''
         },
         line2: {
           ...poem.line2,
           show: this.showLine(this.state.username, poem, 'line2', poetOwner),
-          assignedTo: poetOwner.next.value
+          assignedTo: poetOwner && poetOwner.next ? poetOwner.next.data : ''
         },
         line3: {
           ...poem.line3,
           show: this.showLine(this.state.username, poem, 'line3', poetOwner),
-          assignedTo: poetOwner.next.next.value
+          assignedTo: poetOwner && poetOwner.next && poetOwner.next.next ? poetOwner.next.next.data : ''
         },
         line4: {
           ...poem.line4,
           show: this.showLine(this.state.username, poem, 'line4', poetOwner),
-          assignedTo: poetOwner.next.next.next.value
+          assignedTo: poetOwner && poetOwner.next && poetOwner.next.next && poetOwner.next.next.next ? poetOwner.next.next.next.data : ''
         },
         line5: {
           ...poem.line5,
           show: this.showLine(this.state.username, poem, 'line5', poetOwner),
-          assignedTo: poetOwner.next.next.next.next.value
+          assignedTo: poetOwner && poetOwner.next && poetOwner.next.next && poetOwner.next.next.next && poetOwner.next.next.next.next ? poetOwner.next.next.next.next.data : ''
         },
-      })
-    })
-    const visiblePoems = assignedPoems.filter(this.currentlyEditingLine)
+      });
+    });
+
+    const visiblePoems = assignedPoems.filter(this.currentlyEditingLine);
     const completedPoems = this.state.poems.filter(poem => poem.line5.value !== '');
 
     return (
@@ -428,3 +466,9 @@ class App extends React.Component<{}, IState> {
 }
 
 export default App
+
+
+
+
+
+
